@@ -31,6 +31,44 @@ secondary_hang:
 
 primary_cpu:
     /* -------------------------------------------------------
+     * Step 1b: Drop from EL2 to EL1 if needed.
+     * QEMU may start us at EL2 (hypervisor). We need to get
+     * to EL1 (kernel) and configure EL2 to allow EL1 access
+     * to timers, GIC system registers, etc.
+     * ------------------------------------------------------- */
+    mrs     x0, currentel
+    lsr     x0, x0, #2         // CurrentEL is in bits [3:2]
+    cmp     x0, #2             // Are we at EL2?
+    b.ne    at_el1             // If not, skip EL2 setup
+
+    /* Configure EL2 to allow EL1 access */
+    mov     x0, #(1 << 31)     // RW=1: EL1 is AArch64
+    orr     x0, x0, #(1 << 1)  // SWIO=1: set/way invalidation override
+    msr     hcr_el2, x0
+
+    /* Don't trap counter/timer access to EL2 */
+    mov     x0, #0x3           // EL1PCEN=1, EL1PCTEN=1
+    msr     cnthctl_el2, x0
+    msr     cntvoff_el2, xzr   // No virtual offset
+
+    /* Set up SPSR for EL1 (mask all exceptions, select SP_EL1) */
+    mov     x0, #0x3C5         // D=1, A=1, I=1, F=1, M[3:0]=0b0101 (EL1h)
+    msr     spsr_el2, x0
+
+    /* Set return address to at_el1 */
+    adr     x0, at_el1
+    msr     elr_el2, x0
+
+    eret                        // Drop to EL1
+
+at_el1:
+    /* -------------------------------------------------------
+     * Step 1c: Select SP_ELx (not SP_EL0).
+     * SPSel = 1 means use SP_EL1.
+     * ------------------------------------------------------- */
+    msr     spsel, #1           // Use SP_EL1
+
+    /* -------------------------------------------------------
      * Step 2: Set up the stack pointer.
      * Stack grows downward. We place it at the _start symbol
      * (0x40000000) so it grows into lower addresses, away
