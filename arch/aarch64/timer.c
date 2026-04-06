@@ -18,6 +18,10 @@
 #include "drivers/timer.h"
 #include "drivers/gic.h"
 #include "drivers/uart.h"
+#include "proc.h"
+
+/* Flag: set by timer IRQ, checked by IRQ handler after EOI */
+static volatile bool need_reschedule = false;
 
 /* Timer control register bits */
 #define CNTP_CTL_ENABLE     (1 << 0)
@@ -62,8 +66,8 @@ void timer_init(void) {
     /* Enable the timer IRQ in the GIC (PPI 30) */
     gic_enable_irq(TIMER_IRQ);
 
-    /* Set initial countdown — 1 second */
-    write_cntp_tval(timer_freq);
+    /* Set initial countdown — 100ms (10 ticks per second) */
+    write_cntp_tval(timer_freq / 10);
 
     /* Enable timer, unmask interrupt */
     write_cntp_ctl(CNTP_CTL_ENABLE);
@@ -74,10 +78,21 @@ void timer_init(void) {
 
 void timer_handle_irq(void) {
     tick_count++;
-    kprintf("[timer] Tick %lu\n", tick_count);
 
-    /* Re-arm the timer for the next tick */
-    write_cntp_tval(timer_freq);
+    /* Re-arm the timer for the next tick (100ms) */
+    write_cntp_tval(timer_freq / 10);
+
+    /* Signal that we need to reschedule after EOI */
+    need_reschedule = true;
+}
+
+
+bool timer_needs_reschedule(void) {
+    if (need_reschedule) {
+        need_reschedule = false;
+        return true;
+    }
+    return false;
 }
 
 

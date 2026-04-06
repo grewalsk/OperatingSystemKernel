@@ -34,10 +34,11 @@ QEMU    = qemu-system-aarch64
 QFLAGS  = -machine virt,gic-version=2 -cpu cortex-a72 -m 1G -nographic -kernel
 
 # ─── Sources ──────────────────────────────────────────────────
-ASM_SRCS = boot/boot.S arch/aarch64/vectors.S
+ASM_SRCS = boot/boot.S arch/aarch64/vectors.S arch/aarch64/context.S
 C_SRCS   = kernel/main.c kernel/panic.c drivers/uart.c drivers/gic.c \
            arch/aarch64/exception.c arch/aarch64/timer.c \
-           mm/pmm.c mm/vmm.c mm/kmalloc.c
+           mm/pmm.c mm/vmm.c mm/kmalloc.c \
+           proc/process.c proc/scheduler.c
 
 ASM_OBJS = $(patsubst %.S, build/%.o, $(ASM_SRCS))
 C_OBJS   = $(patsubst %.c, build/%.o, $(C_SRCS))

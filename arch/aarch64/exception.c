@@ -9,6 +9,7 @@
 #include "drivers/uart.h"
 #include "drivers/gic.h"
 #include "drivers/timer.h"
+#include "proc.h"
 
 /* Exception Syndrome Register (ESR_EL1) exception class values */
 #define ESR_EC_SVC64    0x15    /* SVC from AArch64 */
@@ -98,7 +99,13 @@ void el1_irq(uint64_t *regs) {
         break;
     }
 
+    /* MUST send EOI before context_switch */
     gic_end_irq(irq);
+
+    /* Check if the timer requested a reschedule */
+    if (timer_needs_reschedule()) {
+        schedule();
+    }
 }
 
 

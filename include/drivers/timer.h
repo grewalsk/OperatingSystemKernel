@@ -23,4 +23,7 @@ uint64_t timer_get_ticks(void);
 /* Get the timer frequency in Hz */
 uint64_t timer_get_freq(void);
 
+/* Check and clear the reschedule flag */
+bool timer_needs_reschedule(void);
+
 #endif /* DRIVERS_TIMER_H */
