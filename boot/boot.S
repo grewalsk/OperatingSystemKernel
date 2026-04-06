@@ -63,7 +63,16 @@ primary_cpu:
 
 at_el1:
     /* -------------------------------------------------------
-     * Step 1c: Select SP_ELx (not SP_EL0).
+     * Step 1c: Enable FP/SIMD (NEON).
+     * GCC may emit NEON instructions for memset/memcpy.
+     * CPACR_EL1 bits [21:20] = 0b11 → no trapping of FP/SIMD.
+     * ------------------------------------------------------- */
+    mov     x0, #(3 << 20)
+    msr     cpacr_el1, x0
+    isb
+
+    /* -------------------------------------------------------
+     * Step 1d: Select SP_ELx (not SP_EL0).
      * SPSel = 1 means use SP_EL1.
      * ------------------------------------------------------- */
     msr     spsel, #1           // Use SP_EL1
