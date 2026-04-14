@@ -33,6 +33,7 @@
 #define PTE_AF          (1UL << 10) /* Access Flag (must be set) */
 #define PTE_SH_INNER    (3UL << 8)  /* Inner Shareable */
 #define PTE_AP_RW       (0UL << 6)  /* EL1 R/W, EL0 none */
+#define PTE_AP_RW_ALL   (1UL << 6)  /* EL1 R/W, EL0 R/W */
 #define PTE_AP_RO       (2UL << 6)  /* EL1 R/O, EL0 none */
 #define PTE_UXN         (1UL << 54) /* Unprivileged Execute Never */
 #define PTE_PXN         (1UL << 53) /* Privileged Execute Never */
@@ -43,6 +44,7 @@
 
 #define PTE_DEVICE  ((MAIR_IDX_DEVICE << 2) | PTE_AF | PTE_SH_INNER | PTE_UXN | PTE_PXN)
 #define PTE_NORMAL  ((MAIR_IDX_NORMAL << 2) | PTE_AF | PTE_SH_INNER)
+#define PTE_NORMAL_USER ((MAIR_IDX_NORMAL << 2) | PTE_AF | PTE_SH_INNER) /* EL0 accessible */
 
 /* Extract table index from virtual address */
 #define L0_INDEX(va)    ((((uint64_t)(va)) >> 39) & 0x1FF)

@@ -15,6 +15,11 @@
 #define ESR_EC_SVC64    0x15    /* SVC from AArch64 */
 #define ESR_EC_DABT_EL1 0x25    /* Data abort from current EL */
 #define ESR_EC_IABT_EL1 0x21    /* Instruction abort from current EL */
+#define ESR_EC_DABT_EL0 0x24    /* Data abort from lower EL */
+#define ESR_EC_IABT_EL0 0x20    /* Instruction abort from lower EL */
+
+/* Defined in syscall.c */
+extern void syscall_dispatch(uint64_t *frame);
 
 /* Read ESR_EL1 */
 static inline uint64_t read_esr_el1(void) {
@@ -48,28 +53,26 @@ static inline uint64_t read_elr_el1(void) {
  */
 void el1_sync(uint64_t *regs) {
     uint64_t esr = read_esr_el1();
-    uint64_t ec = (esr >> 26) & 0x3F;   /* Exception Class */
+    uint64_t ec = (esr >> 26) & 0x3F;
     uint64_t elr = read_elr_el1();
     uint64_t far = read_far_el1();
 
-    UNUSED(regs);
+    switch (ec) {
+    case ESR_EC_SVC64:
+        kprintf("[el1_sync] SVC from ELR=0x%lx\n", elr);
+        /* System call from EL1 (user code running in kernel mode) */
+        syscall_dispatch(regs);
+        return;  /* Don't print exception info for syscalls */
+    default:
+        break;
+    }
 
+    /* Non-SVC exception — print info and panic */
     kprintf("\n[EXCEPTION] Synchronous exception at EL1\n");
     kprintf("  ESR_EL1: 0x%016lx (EC=0x%02lx)\n", esr, ec);
     kprintf("  ELR_EL1: 0x%016lx\n", elr);
     kprintf("  FAR_EL1: 0x%016lx\n", far);
-
-    switch (ec) {
-    case ESR_EC_DABT_EL1:
-        panic("Data abort in kernel at address 0x%016lx");
-        break;
-    case ESR_EC_IABT_EL1:
-        panic("Instruction abort in kernel at address 0x%016lx");
-        break;
-    default:
-        panic("Unhandled synchronous exception (EC=0x%02lx)");
-        break;
-    }
+    panic("Unhandled synchronous exception");
 }
 
 
@@ -114,6 +117,40 @@ void el1_irq(uint64_t *regs) {
  *
  * If we get here, something went very wrong.
  */
+/*
+ * el0_sync — Synchronous exception from user space (EL0)
+ *
+ * This is where SVC (system call) exceptions land.
+ */
+void el0_sync(uint64_t *regs) {
+    uint64_t esr = read_esr_el1();
+    uint64_t ec = (esr >> 26) & 0x3F;
+
+    switch (ec) {
+    case ESR_EC_SVC64:
+        syscall_dispatch(regs);
+        break;
+    case ESR_EC_DABT_EL0:
+        kprintf("\n[EXCEPTION] User data abort at 0x%016lx\n", read_far_el1());
+        kprintf("  ELR_EL1: 0x%016lx\n", read_elr_el1());
+        proc_current()->state = PROC_ZOMBIE;
+        yield();
+        break;
+    case ESR_EC_IABT_EL0:
+        kprintf("\n[EXCEPTION] User instruction abort at 0x%016lx\n", read_far_el1());
+        kprintf("  ELR_EL1: 0x%016lx\n", read_elr_el1());
+        proc_current()->state = PROC_ZOMBIE;
+        yield();
+        break;
+    default:
+        kprintf("\n[EXCEPTION] Unhandled EL0 sync exception (EC=0x%02lx)\n", ec);
+        proc_current()->state = PROC_ZOMBIE;
+        yield();
+        break;
+    }
+}
+
+
 void exception_invalid(uint64_t type, uint64_t *regs) {
     UNUSED(regs);
 

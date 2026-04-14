@@ -46,18 +46,28 @@ void sched_enqueue(process_t *proc) {
 void schedule(void) {
     process_t *current = proc_current();
 
-    /* Nothing in the queue — keep running current */
-    if (!run_queue_head) {
-        return;
+    /* Dequeue the next runnable process, discarding any dead entries. */
+    process_t *next = NULL;
+    while (run_queue_head) {
+        process_t *candidate = run_queue_head;
+        run_queue_head = candidate->next;
+        if (!run_queue_head) {
+            run_queue_tail = NULL;
+        }
+        candidate->next = NULL;
+
+        if (candidate->state == PROC_ZOMBIE || candidate->state == PROC_UNUSED) {
+            /* Drop it on the floor — no re-enqueue. */
+            continue;
+        }
+        next = candidate;
+        break;
     }
 
-    /* Dequeue the next process */
-    process_t *next = run_queue_head;
-    run_queue_head = next->next;
-    if (!run_queue_head) {
-        run_queue_tail = NULL;
+    /* Nothing runnable — keep running current */
+    if (!next) {
+        return;
     }
-    next->next = NULL;
 
     /* If current is still runnable, put it back in the queue */
     if (current->state == PROC_RUNNING) {
