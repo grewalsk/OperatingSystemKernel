@@ -17,6 +17,9 @@
 
 .global context_switch
 context_switch:
+    /* Ensure we use SP_EL1 consistently */
+    msr     spsel, #1
+
     /* Save old context */
     stp     x19, x20, [x0, #0]
     stp     x21, x22, [x0, #16]

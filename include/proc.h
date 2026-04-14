@@ -46,8 +46,10 @@ typedef struct process {
     uint64_t        state;
     cpu_context_t   context;        /* Saved CPU state for context switch */
     void            *kstack;        /* Base of kernel stack allocation */
+    void            *ustack;        /* User-space stack (NULL for kthreads) */
     struct process  *next;          /* Next in run queue */
     const char      *name;          /* Process name (for debugging) */
+    bool            is_user;        /* True if this is a user-space process */
 } process_t;
 
 /* ─── Process Management ─── */
@@ -57,6 +59,9 @@ void proc_init(void);
 
 /* Create a new kernel task that runs the given function */
 process_t *proc_create_kthread(const char *name, void (*entry)(void));
+
+/* Create a new user-space process that runs the given function in EL0 */
+process_t *proc_create_user(const char *name, void (*entry)(void));
 
 /* Get the currently running process */
 process_t *proc_current(void);

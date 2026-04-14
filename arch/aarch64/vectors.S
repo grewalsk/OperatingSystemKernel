@@ -109,10 +109,16 @@
 .global exception_vector_table
 exception_vector_table:
 
-    /* ─── Current EL with SP_EL0 (fallback — also handle IRQ here) ─── */
-    vector_entry_invalid 0      /* Synchronous */
-    vector_entry el1_irq        /* IRQ — handle even if SP_EL0 */
-    vector_entry el1_irq        /* FIQ — treat like IRQ */
+    /* ─── Current EL with SP_EL0 (switch to SP_EL1 first) ─── */
+    .balign 0x80
+    msr     spsel, #1           /* Switch to SP_EL1 before save_regs */
+    b       _el1_sync_entry     /* Then handle as normal sync */
+    .balign 0x80
+    msr     spsel, #1
+    b       _el1_irq_entry
+    .balign 0x80
+    msr     spsel, #1
+    b       _el1_irq_entry
     vector_entry_invalid 3      /* SError */
 
     /* ─── Current EL with SP_ELx (kernel exceptions) ─── */
@@ -121,10 +127,10 @@ exception_vector_table:
     vector_entry el1_irq        /* FIQ — treat like IRQ */
     vector_entry_invalid 7      /* SError */
 
-    /* ─── Lower EL using AArch64 (user space — used later) ─── */
-    vector_entry_invalid 8      /* Synchronous */
-    vector_entry_invalid 9      /* IRQ */
-    vector_entry_invalid 10     /* FIQ */
+    /* ─── Lower EL using AArch64 (user space syscalls & interrupts) ─── */
+    vector_entry el0_sync       /* Synchronous (SVC from user space) */
+    vector_entry el1_irq        /* IRQ while in user space */
+    vector_entry el1_irq        /* FIQ while in user space */
     vector_entry_invalid 11     /* SError */
 
     /* ─── Lower EL using AArch32 (not supported) ─── */
@@ -132,3 +138,18 @@ exception_vector_table:
     vector_entry_invalid 13     /* IRQ */
     vector_entry_invalid 14     /* FIQ */
     vector_entry_invalid 15     /* SError */
+
+/* ─── SP_EL0 → SP_EL1 trampoline entries ─── */
+_el1_sync_entry:
+    save_regs
+    mov     x0, sp
+    bl      el1_sync
+    restore_regs
+    eret
+
+_el1_irq_entry:
+    save_regs
+    mov     x0, sp
+    bl      el1_irq
+    restore_regs
+    eret

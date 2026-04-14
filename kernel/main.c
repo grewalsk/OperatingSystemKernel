@@ -11,6 +11,19 @@
 
 extern void *exception_vector_table;
 
+/* Defined in user/init.c — linked into the kernel image for now */
+extern void user_main(void);
+
+/* Second demo kthread — prints a few messages and exits, showing
+ * cooperative multitasking between two runnable tasks. */
+static void worker_main(void) {
+    for (int i = 0; i < 5; i++) {
+        kprintf("[worker] tick %d\n", i);
+        yield();
+    }
+    kprintf("[worker] done\n");
+}
+
 static inline void exception_init(void) {
     uint64_t addr = (uint64_t)&exception_vector_table;
     asm volatile("msr vbar_el1, %0" :: "r"(addr));
@@ -22,36 +35,12 @@ static inline void irq_enable(void) {
     asm volatile("msr daifclr, #0x3");
 }
 
-/* ─── Test kernel threads ─── */
-
-static void task_a(void) {
-    while (1) {
-        kprintf("[task-A] Hello from Task A (PID %lu)\n", proc_current()->pid);
-        yield();
-    }
-}
-
-static void task_b(void) {
-    while (1) {
-        kprintf("[task-B] Hello from Task B (PID %lu)\n", proc_current()->pid);
-        yield();
-    }
-}
-
-static void task_c(void) {
-    int count = 0;
-    while (1) {
-        kprintf("[task-C] Count = %d (PID %lu)\n", count++, proc_current()->pid);
-        yield();
-    }
-}
-
 
 void kernel_main(void) {
     uart_init();
 
     kprintf("=================================\n");
-    kprintf("  ArmOS Kernel v0.4.0\n");
+    kprintf("  ArmOS Kernel v0.5.0\n");
     kprintf("  AArch64 | QEMU virt machine\n");
     kprintf("=================================\n\n");
 
@@ -71,20 +60,19 @@ void kernel_main(void) {
     proc_init();
     sched_init();
 
-    process_t *pa = proc_create_kthread("task-A", task_a);
-    process_t *pb = proc_create_kthread("task-B", task_b);
-    process_t *pc = proc_create_kthread("task-C", task_c);
-    sched_enqueue(pa);
-    sched_enqueue(pb);
-    sched_enqueue(pc);
+    /* Create kernel threads — user-space SVC path is deferred */
+    process_t *init = proc_create_kthread("init", user_main);
+    process_t *worker = proc_create_kthread("worker", worker_main);
+    sched_enqueue(init);
+    sched_enqueue(worker);
 
     timer_init();
 
     kprintf("\n[kernel] Enabling interrupts...\n");
     irq_enable();
-    kprintf("[kernel] Boot complete. 3 tasks scheduled.\n\n");
+    kprintf("[kernel] Boot complete. Scheduling tasks.\n\n");
 
-    /* Idle loop — yield to let tasks run */
+    /* Idle loop */
     while (1) {
         yield();
     }
